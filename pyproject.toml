@@ -1,0 +1,38 @@
+[project]
+name = "debate"
+version = "0.1.0"
+description = "Multi-persona AI debate in a virtual office"
+requires-python = ">=3.10"
+dependencies = [
+    "langchain[openai]>=0.3",
+    "pydantic>=2.0",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "fire>=0.7",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.hatch.build.targets.wheel]
+packages = ["debate"]
+
+[project.scripts]
+debate = "debate.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
