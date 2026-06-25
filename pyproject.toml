@@ -1,7 +1,7 @@
 [project]
-name = "debate"
+name = "badger"
 version = "0.1.0"
-description = "Multi-persona AI debate in a virtual office"
+description = "LangChain-based YAML-driven multi-role AI discussion engine with workflow support"
 requires-python = ">=3.10"
 dependencies = [
     "langchain[openai]>=0.3",
@@ -28,10 +28,10 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 quote-style = "double"
 
 [tool.hatch.build.targets.wheel]
-packages = ["debate"]
+packages = ["badger"]
 
 [project.scripts]
-debate = "debate.__main__:main"
+badger = "badger.__main__:main"
 
 [build-system]
 requires = ["hatchling"]

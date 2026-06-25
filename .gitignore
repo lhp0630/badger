@@ -4,4 +4,8 @@ __pycache__/
 .ruff_cache/
 .work/
 .env
+
 .vscode/
+.cursor/
+
+tasks/
