@@ -6,63 +6,52 @@ import fire
 import uvicorn
 from dotenv import find_dotenv, load_dotenv
 
-from .builder import build_agent
-from .models import PlaybookSpec
-
-BUILTIN_AGENTS_DIR = Path(__file__).parent / "builtin_agents"
+from .builder import AGENTS_DIR, build_agent
+from .models import SUPPORTED_EXTENSIONS, PlaybookSpec
 
 
-def _load_playbook_specs(path: str | Path | None = None) -> list[PlaybookSpec]:
+def _load_playbooks() -> list[PlaybookSpec]:
     env_file = find_dotenv(usecwd=True)
     load_dotenv(env_file)
 
-    supported_extensions = [".yaml", ".yml"]
-    paths: list[Path] = []
-
     playbook_specs: list[PlaybookSpec] = []
 
-    for ext in supported_extensions:
-        paths.extend(BUILTIN_AGENTS_DIR.glob(f"*{ext}"))
-        if path:
-            paths.extend(Path(path).glob(f"*{ext}"))
+    spec_files: list[Path] = []
+    for ext in SUPPORTED_EXTENSIONS:
+        spec_files.extend(AGENTS_DIR.glob(f"*{ext}"))
 
-    for spec_path in (p for p in paths if p.is_file()):
+    for spec_file in spec_files:
         try:
-            playbook_spec = PlaybookSpec.from_yaml(spec_path)
+            playbook_spec = PlaybookSpec.from_yaml(spec_file)
             playbook_specs.append(playbook_spec)
         except Exception as e:
-            print(f"Error loading playbook spec {spec_path}: {e}", file=sys.stderr)
+            print(f"Error loading playbook spec {spec_file}: {e}", file=sys.stderr)
 
     return playbook_specs
 
 
-def run(
-    name: str | None = None,
-    path: str | None = None,
-    host: str = "127.0.0.1",
-    port: int = 8000,
-) -> None:
-    playbook_specs = _load_playbook_specs(path)
-    if not playbook_specs:
-        print("No playbook specs found.", file=sys.stderr)
+def run(name: str | None = None, host: str = "127.0.0.1", port: int = 8000) -> None:
+    playbooks = _load_playbooks()
+    if not playbooks:
+        print("No playbook found.", file=sys.stderr)
         raise SystemExit(1)
 
     if not name:
-        playbook_spec = random.choice(playbook_specs)
+        playbook = random.choice(playbooks)
     else:
-        playbook_spec = next((spec for spec in playbook_specs if spec.name == name), None)
-        if not playbook_spec:
-            print(f"Playbook spec not found: {name}", file=sys.stderr)
+        playbook = next((spec for spec in playbooks if spec.name == name), None)
+        if not playbook:
+            print(f"Playbook not found: {name}", file=sys.stderr)
             print(
-                f"Available: {', '.join(sorted(spec.name for spec in playbook_specs))}",
+                f"Available: {', '.join(sorted(spec.name for spec in playbooks))}",
                 file=sys.stderr,
             )
             raise SystemExit(1)
 
-    agent = build_agent(playbook_spec)
+    agent = build_agent(playbook)
     app = agent.to_web()
 
-    print(f"Serving {playbook_spec.name!r} at http://{host}:{port}")
+    print(f"Serving {playbook.name!r} at http://{host}:{port}")
     uvicorn.run(app, host=host, port=port)
 
 

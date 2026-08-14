@@ -1,15 +1,25 @@
+import os
 import re
+from pathlib import Path
 
+from fastmcp.client.transports import StdioTransport
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import WebFetch
+from pydantic_ai.mcp import MCPToolset
+from pydantic_ai.models import Model
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai_harness.dynamic_workflow import DynamicWorkflow
+from pydantic_ai_skills import SkillsCapability
 
-from .llm import make_model
-from .models import Act, Cast, PlaybookSpec
+from .models import Node, PlaybookSpec
+
+AGENTS_DIR = Path(".agents")
+SKILLS_DIRS = [AGENTS_DIR / "skills"]
 
 
-def to_identifier(name: str) -> str:
-    """Turn a display name into a valid Python identifier for DynamicWorkflow."""
-
+def _normalize_agent_name(name: str) -> str:
     cleaned = re.sub(r"[^0-9A-Za-z_]+", "_", name.strip())
     cleaned = re.sub(r"_+", "_", cleaned).strip("_")
     if not cleaned:
@@ -19,39 +29,79 @@ def to_identifier(name: str) -> str:
     return cleaned.lower()
 
 
-def _build_cast_system_prompts(playbook: PlaybookSpec, member: Cast) -> list[str]:
-    prompts: list[str] = []
-    seen: set[str] = set()
-    for act in playbook.acts:
-        for cue in act.cues:
-            if cue.cast != member.name or not cue.instructions.strip():
-                continue
-            text = cue.instructions.format(
-                role_name=member.name,
-                role_description=member.description,
-            ).strip()
-            if text and text not in seen:
-                seen.add(text)
-                prompts.append(text)
-    return prompts
+def _scan_target_skills(
+    skills: list[str], directories: list[Path | str] | None = None
+) -> list[Path]:
+    if not directories:
+        directories = SKILLS_DIRS
+
+    skill_dirs: list[Path] = []
+
+    for dir in directories:
+        base_path = Path(dir)
+
+        for skill_name in skills:
+            skill_path = base_path / skill_name
+            if not skill_path.is_dir():
+                raise ValueError(
+                    f"Skill {skill_name} not found under {directories}. "
+                    "Ensure the skill git submodule is initialized."
+                )
+            skill_file = skill_path / "SKILL.md"
+            if not skill_file.exists():
+                raise ValueError(f"Skill {skill_name} is missing SKILL.md at {skill_file}")
+            skill_dirs.append(skill_path)
+    return skill_dirs
 
 
-def _build_cast_instructions(playbook: PlaybookSpec, member: Cast) -> str:
-    prompts: list[str] = [f"You are {member.name}."]
-    if member.description.strip():
-        prompts.append(member.description.strip())
-    if playbook.instructions and playbook.instructions.strip():
-        prompts.append(playbook.instructions.strip())
-    for prompt in _build_cast_system_prompts(playbook, member):
-        prompts.append(prompt)
-    return "\n\n".join(prompts)
+def _make_gitlab_mcptools():
+    api_url = os.environ.get("GITLAB_API_URL")
+    if not api_url:
+        return []
+
+    pat = os.environ.get("GITLAB_PERSONAL_ACCESS_TOKEN")
+
+    return [
+        MCPToolset(
+            StdioTransport(
+                command="npx",
+                args=[
+                    "-y",
+                    "--registry=https://registry.npmmirror.com",
+                    "@zereight/mcp-gitlab",
+                ],
+                env={"GITLAB_API_URL": api_url, "GITLAB_PERSONAL_ACCESS_TOKEN": pat},
+            ),
+        )
+    ]
 
 
-def _build_act_hint(act: Act) -> str:
-    casts = [cue.cast for cue in act.cues]
-    cast_names = ", ".join(dict.fromkeys(casts)) or "(none)"
-    desc = act.description.strip() or "No description."
-    return f"- {act.name} ({cast_names}): {desc}"
+def _make_model(config: dict[str, object]) -> Model:
+    model_name = config.pop("model", None)
+    if not model_name:
+        model_name = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+    base_url = config.pop("base_url", None)
+    if not base_url:
+        base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+
+    api_key = config.pop("api_key", None)
+
+    settings = ModelSettings(**config)
+    provider = OpenAIProvider(base_url=base_url, api_key=api_key)
+    return OpenAIChatModel(model_name, provider=provider, settings=settings)
+
+
+def _build_node_hint(node: Node) -> str:
+    skills = ", ".join(node.skills) if node.skills else "(none)"
+    prompt_preview = (
+        node.instructions.strip().splitlines()[0] if node.instructions.strip() else "No prompt."
+    )
+    if len(prompt_preview) > 120:
+        prompt_preview = prompt_preview[:117] + "..."
+    return (
+        f"- `{_normalize_agent_name(node.name)}` ({node.name}; skills: {skills}): {prompt_preview}"
+    )
 
 
 def _build_instructions(playbook: PlaybookSpec) -> str:
@@ -63,84 +113,65 @@ def _build_instructions(playbook: PlaybookSpec) -> str:
     if playbook.instructions and playbook.instructions.strip():
         prompts.append(playbook.instructions.strip())
 
-    if playbook.cast:
-        catalog = "\n".join(
-            (
-                f"- `{to_identifier(member.name)}` ({member.name}): "
-                f"{member.description.strip() or 'No description.'}"
-            )
-            for member in playbook.cast
-        )
+    prompts.append(
+        "Fetch the user-provided commit/MR/PR URL before running nodes:\n"
+        "- GitHub URLs (github.com): use WebFetch only.\n"
+        "- GitLab URLs (gitlab.com or self-hosted GitLab): use gitlab MCP tools only; "
+        "do not use WebFetch for GitLab.\n"
+        "Then run the workflow nodes in the declared order via `run_workflow`, "
+        "passing prior outputs into later `task` strings."
+    )
+
+    if playbook.nodes:
+        catalog = "\n".join(_build_node_hint(node) for node in playbook.nodes)
         prompts.append(
-            "Use the `run_workflow` tool to coordinate these specialists "
+            "Use the `run_workflow` tool to coordinate these nodes "
             f"(call each as an async function with `task=...`):\n{catalog}"
         )
 
-    if playbook.acts:
-        act_lines = "\n".join(_build_act_hint(act) for act in playbook.acts)
-        prompts.append(f"Suggested workflow acts:\n{act_lines}")
-
-    if playbook.model.max_rounds > 1:
-        prompts.append(
-            f"When an act is iterative (e.g. debate), run up to {playbook.model.max_rounds} rounds."
-        )
-
     prompts.append(
-        "Write a Python script inside `run_workflow` that calls the specialists, "
+        "Write a Python script inside `run_workflow` that calls the nodes in order, "
         "passes prior outputs into later `task` strings, and returns the final result."
     )
     return "\n\n".join(prompts)
 
 
-def _ensure_moderator(playbook: PlaybookSpec) -> list[Cast]:
-    """Ensure debate-style `__moderator__` cues have a cast entry."""
+def build_agent(playbook: PlaybookSpec, directories: list[Path | str] | None = None) -> Agent:
+    default_model = _make_model(playbook.model)
 
-    members = list(playbook.cast)
-    names = {member.name for member in members}
-    needs_moderator = any(cue.cast == "__moderator__" for act in playbook.acts for cue in act.cues)
-    if needs_moderator and "__moderator__" not in names:
-        members.append(
-            Cast(
-                name="__moderator__",
-                description="Moderator who sets topics and keeps the discussion on track.",
-            )
-        )
-    return members
-
-
-def build_agent(playbook: PlaybookSpec) -> Agent:
-    """Build a pydantic-ai orchestrator with DynamicWorkflow from a PlaybookSpec."""
-
-    members = _ensure_moderator(playbook)
-    if not members:
-        raise ValueError(f"Playbook {playbook.name!r} has no cast to orchestrate.")
-
-    default_model = make_model(playbook.model)
-    cast_agents: list[Agent] = []
+    node_agents: list[Agent] = []
     seen: set[str] = set()
 
-    for member in members:
-        ident = to_identifier(member.name)
-        if ident in seen:
+    for node in playbook.nodes:
+        normalized_node_name = _normalize_agent_name(node.name)
+        if normalized_node_name in seen:
             raise ValueError(
-                f"Duplicate sub-agent name {ident!r} after normalizing {member.name!r}."
+                f"Duplicate sub-agent name {normalized_node_name} after normalizing {node.name}."
             )
-        seen.add(ident)
+        seen.add(normalized_node_name)
 
-        model = make_model(member.model) if member.model.model else default_model
-        cast_agents.append(
+        capabilities: list = []
+        if node.skills:
+            skill_dirs = _scan_target_skills(node.skills, directories)
+            capabilities.append(SkillsCapability(directories=skill_dirs))
+
+        node_agents.append(
             Agent(
-                model,
-                name=ident,
-                description=(member.description.strip() or f"Specialist role: {member.name}"),
-                instructions=_build_cast_instructions(playbook, member),
+                default_model,
+                name=normalized_node_name,
+                instructions=node.instructions,
+                capabilities=capabilities or None,
             )
         )
 
     return Agent(
         default_model,
-        name=to_identifier(playbook.name),
+        name=_normalize_agent_name(playbook.name),
         description=playbook.description or playbook.name,
         instructions=_build_instructions(playbook),
-        capabilities=[DynamicWorkflow(agents=cast_agents)],
+        capabilities=[
+            WebFetch(local=True),
+            DynamicWorkflow(agents=node_agents),
+        ],
+        toolsets=[*_make_gitlab_mcptools()] or None,
     )

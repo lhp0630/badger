@@ -1,0 +1,35 @@
+name: "codereview"
+description: "Review a GitHub/GitLab commit or PR/MR via first principles, 5-whys, then code review"
+
+model:
+  # model: "gpt-4o-mini"
+  # base_url: ""
+  # api_key: ""
+  temperature: 0.3
+
+instructions: |
+  Fetch the user-provided commit/MR/PR URL first, then run nodes in order.
+  GitHub → WebFetch only. GitLab → gitlab MCP tools only (never WebFetch for GitLab).
+  Pass fetched content and prior node outputs into later tasks.
+
+nodes:
+  - name: first_principles
+    instructions: |
+      Load and apply the first-principles-skill. Base your analysis on the fetched diff/PR content
+      and any prior context in the task. State whether the change should be adopted and why.
+    skills:
+      - first-principles-skill
+
+  - name: five_whys
+    instructions: |
+      Load and apply the 5-whys-skill. Dig into the implementation rationale behind the change,
+      using the fetched content and the first-principles analysis from prior steps.
+    skills:
+      - 5-whys-skill
+
+  - name: code_review
+    instructions: |
+      Load and apply the code-review-skill. Produce a concrete review of the fetched diff/PR,
+      incorporating insights from first-principles and 5-whys analysis when available.
+    skills:
+      - code-review-skill
