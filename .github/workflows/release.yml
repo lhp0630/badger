@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build source archives
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          prefix="agent-playbook-${tag}"
+          git archive --format=tar.gz --prefix="${prefix}/" -o "${prefix}.tar.gz" HEAD
+          git archive --format=zip --prefix="${prefix}/" -o "${prefix}.zip" HEAD
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            agent-playbook-*.tar.gz
+            agent-playbook-*.zip
+          generate_release_notes: true
