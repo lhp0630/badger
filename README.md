@@ -55,28 +55,7 @@ Optional listen address (defaults `127.0.0.1:8000`):
 agent -n codereview --host 127.0.0.1 --port 8000
 ```
 
-## Playbook shape
-
-```yaml
-name: "codereview"
-description: "Review a GitHub/GitLab commit or PR/MR"
-model:
-  temperature: 0.3
-instructions: |
-  GitHub → WebFetch. GitLab → gitlab MCP (never WebFetch for GitLab).
-nodes:
-  - name: first_principles
-    instructions: |
-      Load and apply the first-principles-skill. ...
-    skills:
-      - first-principles-skill
-```
-
 ## Example
-
-```bash
-agent -n codereview
-```
 
 | GitHub | GitLab | Result |
 | --- | --- | --- |

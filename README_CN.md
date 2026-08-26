@@ -55,28 +55,7 @@ agent -n codereview
 agent -n codereview --host 127.0.0.1 --port 8000
 ```
 
-## Playbook 结构
-
-```yaml
-name: "codereview"
-description: "Review a GitHub/GitLab commit or PR/MR"
-model:
-  temperature: 0.3
-instructions: |
-  GitHub → WebFetch。GitLab → gitlab MCP（不要对 GitLab 使用 WebFetch）。
-nodes:
-  - name: first_principles
-    instructions: |
-      Load and apply the first-principles-skill. ...
-    skills:
-      - first-principles-skill
-```
-
 ## 示例
-
-```bash
-agent -n codereview
-```
 
 | GitHub | GitLab | 结果 |
 | --- | --- | --- |
