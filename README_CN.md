@@ -43,10 +43,10 @@ GITLAB_API_URL=https://gitlab.example.com/api/v4
 GITLAB_PERSONAL_ACCESS_TOKEN=glpat-xxx
 ```
 
-运行 Playbook（`-n` 须与 YAML 中的 `name` 一致；省略则随机选择）。粘贴 GitHub commit `.diff` / PR，或 GitLab commit / MR 地址：
+运行 Playbook。粘贴 GitHub commit `.diff` / PR，或 GitLab commit / MR 地址：
 
 ```bash
-agent -n codereview
+agent
 ```
 
 可选监听地址（默认 `127.0.0.1:8000`）：
@@ -54,6 +54,24 @@ agent -n codereview
 ```bash
 agent -n codereview --host 127.0.0.1 --port 8000
 ```
+
+## Playbook YAML
+
+| 字段 | 必填 | 说明 |
+| --- | :---: | --- |
+| `name` | ✓ | 唯一 ID，如 `codereview` |
+| `description` | | 一句话摘要，每次会话根据摘要匹配 Playbook |
+| `instructions` | | orchestrator 运行规程 |
+| `model` | | LLM 配置：`model`、`base_url`、`api_key`、`temperature` 等 |
+| `mcp_servers` | | MCP 工具列表 |
+| `mcp_servers[].name` | ✓ | MCP 名称，如 `gitlab` |
+| `mcp_servers[].commands` | ✓ | 命令数组，首项为可执行文件 |
+| `mcp_servers[].env_vars` | | 环境变量名列表，或 `key: value` 字典 |
+| `directories` | | Skill 库路径，默认 `.agents/skills` |
+| `nodes` | ✓ | 工作流节点，按列表顺序执行 |
+| `nodes[].name` | ✓ | 节点名，规范化后作为 `run_workflow` 函数名 |
+| `nodes[].instructions` | | 节点提示词 |
+| `nodes[].skills` | ✓ | Skill 或 URI，如 `https://github.com/anthropics/skills.git` |
 
 ## 示例
 

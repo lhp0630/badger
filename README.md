@@ -43,10 +43,10 @@ GITLAB_API_URL=https://gitlab.example.com/api/v4
 GITLAB_PERSONAL_ACCESS_TOKEN=glpat-xxx
 ```
 
-Run a playbook (`-n` must match the YAML `name`; omit to pick at random). Paste a GitHub commit `.diff` / PR URL, or a GitLab commit / MR URL:
+Run a playbook. Paste a GitHub commit `.diff` / PR URL, or a GitLab commit / MR URL:
 
 ```bash
-agent -n codereview
+agent
 ```
 
 Optional listen address (defaults `127.0.0.1:8000`):
@@ -54,6 +54,24 @@ Optional listen address (defaults `127.0.0.1:8000`):
 ```bash
 agent -n codereview --host 127.0.0.1 --port 8000
 ```
+
+## Playbook YAML
+
+| Field | Required | Description |
+| --- | :---: | --- |
+| `name` | ✓ | Unique ID, e.g. `codereview` |
+| `description` | | One-line summary; used to match a playbook per session |
+| `instructions` | | Orchestrator runbook |
+| `model` | | LLM settings: `model`, `base_url`, `api_key`, `temperature`, etc. |
+| `mcp_servers` | | MCP tool list |
+| `mcp_servers[].name` | ✓ | MCP name, e.g. `gitlab` |
+| `mcp_servers[].commands` | ✓ | Command array; first element is the executable |
+| `mcp_servers[].env_vars` | | Env var names, or a `key: value` map |
+| `directories` | | Skill library path; default `.agents/skills` |
+| `nodes` | ✓ | Workflow nodes, executed in list order |
+| `nodes[].name` | ✓ | Node name; normalized for `run_workflow` |
+| `nodes[].instructions` | | Node prompt |
+| `nodes[].skills` | ✓ | Skill names or a URI, e.g. `https://github.com/anthropics/skills.git` |
 
 ## Example
 
