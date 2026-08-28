@@ -8,7 +8,7 @@ agent-playbook 是基于 pydantic-ai DynamicWorkflow 与 Agent Skills 的 YAML �
 
 - Playbook 配置位于 [`.agents/`](.agents/)，基于 [pydantic-ai](https://ai.pydantic.dev/) + [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness) `DynamicWorkflow`
 - 每个节点配置 `instructions` 与可选 `skills`（通过 [pydantic-ai-skills](https://github.com/DougTrajano/pydantic-ai-skills) 从 `.agents/skills/` 加载）
-- 内置 `codereview`：拉取 GitHub / GitLab 的 commit、PR/MR，再按第一性原理 → 5-whys → 代码评审执行
+- 内置 `code-review`：拉取 GitHub / GitLab 的 commit、PR/MR，再按第一性原理 → 5-whys → 代码评审执行
 - GitHub 使用 WebFetch；配置 `GITLAB_API_URL` 后，GitLab 走 [mcp-gitlab](https://github.com/zereight/gitlab-mcp)
 - 通过 `agent.to_web()` 提供 Web 聊天界面
 
@@ -52,14 +52,14 @@ agent
 可选监听地址（默认 `127.0.0.1:8000`）：
 
 ```bash
-agent -n codereview --host 127.0.0.1 --port 8000
+agent --host 127.0.0.1 --port 8000
 ```
 
 ## Playbook YAML
 
 | 字段 | 必填 | 说明 |
 | --- | :---: | --- |
-| `name` | ✓ | 唯一 ID，如 `codereview` |
+| `name` | ✓ | 唯一 ID，如 `code-review` |
 | `description` | | 一句话摘要，每次会话根据摘要匹配 Playbook |
 | `instructions` | | orchestrator 运行规程 |
 | `model` | | LLM 配置：`model`、`base_url`、`api_key`、`temperature` 等 |
@@ -71,7 +71,7 @@ agent -n codereview --host 127.0.0.1 --port 8000
 | `nodes` | ✓ | 工作流节点，按列表顺序执行 |
 | `nodes[].name` | ✓ | 节点名，规范化后作为 `run_workflow` 函数名 |
 | `nodes[].instructions` | | 节点提示词 |
-| `nodes[].skills` | ✓ | Skill 或 URI，如 `https://github.com/anthropics/skills.git` |
+| `nodes[].skills` | ✓ | Skill 名称数组，从 `directories` 中扫描 |
 
 ## 示例
 

@@ -8,7 +8,7 @@ agent-playbook is YAML-configured multi-agent workflows powered by pydantic-ai D
 
 - YAML playbooks under [`.agents/`](.agents/) on [pydantic-ai](https://ai.pydantic.dev/) + [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness) `DynamicWorkflow`
 - Each node declares `instructions` and optional `skills` (loaded via [pydantic-ai-skills](https://github.com/DougTrajano/pydantic-ai-skills) from `.agents/skills/`)
-- Built-in `codereview` playbook: fetch a GitHub or GitLab commit/PR/MR URL, then first-principles → 5-whys → code-review
+- Built-in `code-review` playbook: fetch a GitHub or GitLab commit/PR/MR URL, then first-principles → 5-whys → code-review
 - GitHub via WebFetch; GitLab via [mcp-gitlab](https://github.com/zereight/gitlab-mcp) when `GITLAB_API_URL` is set
 - Web chat UI via `agent.to_web()`
 
@@ -52,14 +52,14 @@ agent
 Optional listen address (defaults `127.0.0.1:8000`):
 
 ```bash
-agent -n codereview --host 127.0.0.1 --port 8000
+agent --host 127.0.0.1 --port 8000
 ```
 
 ## Playbook YAML
 
 | Field | Required | Description |
 | --- | :---: | --- |
-| `name` | ✓ | Unique ID, e.g. `codereview` |
+| `name` | ✓ | Unique ID, e.g. `code-review` |
 | `description` | | One-line summary; used to match a playbook per session |
 | `instructions` | | Orchestrator runbook |
 | `model` | | LLM settings: `model`, `base_url`, `api_key`, `temperature`, etc. |
@@ -71,7 +71,7 @@ agent -n codereview --host 127.0.0.1 --port 8000
 | `nodes` | ✓ | Workflow nodes, executed in list order |
 | `nodes[].name` | ✓ | Node name; normalized for `run_workflow` |
 | `nodes[].instructions` | | Node prompt |
-| `nodes[].skills` | ✓ | Skill names or a URI, e.g. `https://github.com/anthropics/skills.git` |
+| `nodes[].skills` | ✓ | Skill name array, scanned from `directories` |
 
 ## Example
 
